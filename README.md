@@ -28,3 +28,9 @@ It currently depends on two pre-existing mods, but is likely to replace them.
 - Remain optimized while pushing the PZ engine to its limits, replicating modern systems seen in games like Dark Souls.
 
 ---
+
+## IMPORTANT
+
+- We only use proven methods for B41.78
+- See: https://projectzomboid.com/modding/index.html
+- See: Any documents attached to project conversation

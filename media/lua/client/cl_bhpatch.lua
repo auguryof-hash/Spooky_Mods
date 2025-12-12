@@ -55,28 +55,37 @@ local function SPK_getStanceVars(player)
 end
 
 function SPKAnimSync.syncStance(player)
-	if not player or not player:isLocalPlayer() then return end
+    if not player or not player.isLocalPlayer or not player:isLocalPlayer() then
+        return
+    end
 
-	local id      = player:getOnlineID()
-	local current = SPK_getStanceVars(player)
-	local last    = SPKAnimSync.lastStance[id] or {}
-	local diff    = {}
+    local id = player:getOnlineID()
+    if not id then return end
 
-	for k, v in pairs(current) do
-		if last[k] ~= v then
-			diff[k] = v
-		end
-	end
+    local current = SPK_getStanceVars(player)
+    if type(current) ~= "table" then return end
 
-	if not next(diff) then return end
+    local last = SPKAnimSync.lastStance[id] or {}
+    local diff = nil
 
-	SPKAnimSync.lastStance[id] = current
+    for k, v in pairs(current) do
+        if last[k] ~= v then
+            if not diff then diff = {} end
+            diff[k] = v
+        end
+    end
 
-	sendClientCommand("SPKAnim", "Stance", {
-		id   = id,
-		vars = diff,
-	})
+    if not diff then
+        return
+    end
+
+    SPKAnimSync.lastStance[id] = current
+
+    if sendClientCommand then
+        sendClientCommand("SPKAnim", "Stance", { id = id, vars = diff })
+    end
 end
+
 
 -- sadly necessary to prevent zomboid from doing a vanilla hit on a zombie whenever ConnectSwing is called and a zombie slips out of our punch range
 local function nearZombies(centerSquare, level)

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animNode>
+	<m_Name>ClombatAimMask_Moving</m_Name>
+	<m_AnimName>Bob_Eben_UnarmedAim</m_AnimName>
+	<m_Priority>11</m_Priority>
+	<m_deferredBoneAxis>Y</m_deferredBoneAxis>
+	<m_SyncTrackingEnabled>false</m_SyncTrackingEnabled>
+	<m_SpeedScale>0.80</m_SpeedScale>
+	<m_BlendTime>0.15</m_BlendTime>
+	<m_BlendOutTime>0.25</m_BlendOutTime>
+	<m_Conditions>
+		<m_Name>RightHandMask</m_Name>
+		<m_Type>STRING</m_Type>
+		<m_StringValue>bhunarmedaim</m_StringValue>
+	</m_Conditions>	
+	<m_Conditions>
+		<m_Name>isMoving</m_Name>
+		<m_Type>BOOL</m_Type>
+        <m_BoolValue>true</m_BoolValue>
+	</m_Conditions>		
+	<m_Conditions>
+		<m_Name>isClombat</m_Name>
+		<m_Type>STRING</m_Type>
+		<m_StringValue>true</m_StringValue>
+	</m_Conditions>	
+	<m_Conditions>
+		<m_Name>FHDoingAction</m_Name>
+		<m_Type>BOOL</m_Type>
+		<m_BoolValue>false</m_BoolValue>
+	</m_Conditions>
+    <m_Conditions>
+        <m_Name>Aim</m_Name>
+        <m_Type>BOOL</m_Type>
+        <m_BoolValue>true</m_BoolValue>
+    </m_Conditions>
+	<m_Conditions>
+		<m_Name>bShoveAiming</m_Name>
+		<m_Type>BOOL</m_Type>
+		<m_BoolValue>false</m_BoolValue>
+	</m_Conditions>
+			
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Neck</boneName>
+		<weight>0.8</weight>		
+		<includeDescendants>false</includeDescendants>
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Head</boneName>
+		<weight>0.9</weight>		
+	</m_SubStateBoneWeights>	
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_R_Clavicle</boneName>
+		<weight>0.9</weight>		
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_L_Clavicle</boneName>
+		<weight>0.5</weight>		
+	</m_SubStateBoneWeights>	
+	
+</animNode>

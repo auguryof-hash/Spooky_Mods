@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animNode x_extends="HandgunDefault.xml">
+	<m_Name>GunStockAttackPistol_PlayHitSound</m_Name>
+
+	<m_Conditions>
+		<m_Name>isCanted</m_Name>
+		<m_Type>STRING</m_Type>
+		<m_StringValue>false</m_StringValue>
+	</m_Conditions>
+
+	<m_Conditions>
+		<m_Name>Weapon</m_Name>
+		<m_Type>STRING</m_Type>
+		<m_StringValue>handgun</m_StringValue>
+	</m_Conditions>
+
+	<m_Conditions>
+		<m_Name>AimFloorAnim</m_Name>
+		<m_Type>BOOL</m_Type>
+		<m_BoolValue>false</m_BoolValue>
+	</m_Conditions>
+
+	<m_Conditions>
+		<m_Name>bShoveAiming</m_Name>
+		<m_Type>BOOL</m_Type>
+		<m_BoolValue>true</m_BoolValue>
+	</m_Conditions>		
+
+	<m_Conditions>
+		<m_Name>GSA_ShouldPlayHitSound</m_Name>
+		<m_Type>BOOL</m_Type>
+		<m_BoolValue>true</m_BoolValue>
+	</m_Conditions>
+
+	<m_Events>
+		<m_EventName>PlaySound</m_EventName>
+		<m_TimePc>0.001</m_TimePc>
+		<m_ParameterValue>GunStockAttack_Hit</m_ParameterValue>
+	</m_Events>
+
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_TimePc>0.01</m_TimePc>
+		<m_ParameterValue>GSA_ShouldPlayHitSound=false</m_ParameterValue>
+	</m_Events>
+</animNode>

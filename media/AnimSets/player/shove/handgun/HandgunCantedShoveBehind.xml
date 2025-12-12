@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<animNode x_extends="HandgunCantedDefault.xml">
+	<m_Name>HandgunCantedShoveBehind</m_Name>
+
+	<!-- Inherit base canted-handgun conditions + mask -->
+
+	<!-- Behind-attack flag -->
+	<m_Conditions>
+		<m_Name>AttackFromBehind</m_Name>
+		<m_Type>BOOL</m_Type>
+		<m_BoolValue>true</m_BoolValue>
+	</m_Conditions>
+
+	<m_Events>
+		<m_EventName>AttackCollisionCheck</m_EventName>
+		<m_TimePc>0.20</m_TimePc>
+	</m_Events>
+
+
+	<!-- Upper-body substate, same as original -->	
+	<m_SubStateBoneWeights>
+		<boneName>Bip01</boneName>
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_BackPack</boneName>
+		<weight>0.50</weight>
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Prop1</boneName>
+		<weight>0</weight>
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Prop2</boneName>
+		<weight>0</weight>
+	</m_SubStateBoneWeights>
+</animNode>

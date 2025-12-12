@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<animNode x_extends="HandgunDefault.xml">
+	<m_Name>HandgunShoveBehind</m_Name>
+
+	<!-- Inherit HandgunDefault conditions, add "behind" flag -->
+	<m_Conditions>
+		<m_Name>AttackFromBehind</m_Name>
+		<m_Type>BOOL</m_Type>
+		<m_BoolValue>true</m_BoolValue>
+	</m_Conditions>
+
+	<m_Events>
+		<m_EventName>AttackCollisionCheck</m_EventName>
+		<m_TimePc>0.20</m_TimePc>
+	</m_Events>
+</animNode>

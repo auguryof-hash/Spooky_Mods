@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<animNode x_extends="HandgunCantedDefault.xml">
+	<m_Name>HandgunShoveNoAim</m_Name>
+	<m_AnimName>Bob_Shove_Handgun</m_AnimName>
+	<m_deferredBoneAxis>Y</m_deferredBoneAxis>
+
+	<m_Conditions />
+	<m_Conditions />
+
+
+
+	<m_Conditions>
+		<m_Name>bShoveAiming</m_Name>
+		<m_Type>BOOL</m_Type>
+		<m_BoolValue>false</m_BoolValue>
+	</m_Conditions>
+
+	<m_Events>
+		<m_EventName>AttackCollisionCheck</m_EventName>
+		<m_TimePc>0.2</m_TimePc>
+		<m_ParameterValue></m_ParameterValue>
+	</m_Events>	
+
+	<!-- Upper-body substate, same as original -->	
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Spine</boneName>
+		<weight>0.5</weight>		
+		<includeDescendants>false</includeDescendants>		
+	</m_SubStateBoneWeights>	
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Spine1</boneName>
+		<weight>0.9</weight>		
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Neck</boneName>
+		<weight>0.9</weight>
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_BackPack</boneName>
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Prop1</boneName>
+		<weight>0</weight>
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Prop2</boneName>
+		<weight>0</weight>
+	</m_SubStateBoneWeights>
+</animNode>

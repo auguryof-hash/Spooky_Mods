@@ -1,0 +1,16 @@
+module brutalHandworkPatch {
+	import {
+		Base
+	}
+	sound PunchImpact {
+		category = Item,
+		is3d = true,
+		clip
+		{
+			file = media/sound/puimpact.ogg,
+			volume = 0.4,			
+			distanceMin = 1,
+			distanceMax = 8
+		}
+	}
+}

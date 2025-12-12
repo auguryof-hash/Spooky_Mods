@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animNode>
+	<m_Name>SPK_attack4</m_Name>
+	<m_AnimName>Bob_BH_AttackPunch01_L_Hit</m_AnimName>
+	<m_Priority>5</m_Priority>
+	<m_deferredBoneAxis>Y</m_deferredBoneAxis>
+	<m_Looped>false</m_Looped>
+	<m_EarlyTransitionOut>true</m_EarlyTransitionOut>
+	<m_SpeedScale>LCombatSpeed</m_SpeedScale>
+	<m_BlendTime>0.15</m_BlendTime>
+	<m_BlendOutTime>0.25</m_BlendOutTime>
+	
+	<m_Conditions>
+		<m_Name>isClombat</m_Name>
+		<m_Type>STRING</m_Type>
+		<m_StringValue>true</m_StringValue>
+	</m_Conditions>	
+
+	<m_Conditions>
+		<m_Name>PerformingAction</m_Name>
+		<m_Type>STRING</m_Type>
+		<m_StringValue>LAttack</m_StringValue>
+	</m_Conditions>
+	<m_Conditions>
+		<m_Name>SPK_AttackAnim</m_Name>
+		<m_Type>STRING</m_Type>
+		<m_StringValue>Clom_Back_4</m_StringValue>
+	</m_Conditions>
+	
+	<m_Events>
+		<m_EventName>StartAttack</m_EventName>
+		<m_Time>Start</m_Time>
+		<m_ParameterValue></m_ParameterValue>
+	</m_Events>
+	<m_Events>
+		<m_EventName>BlockMovement</m_EventName>
+		<m_Time>End</m_Time>
+		<m_ParameterValue>FALSE</m_ParameterValue>
+	</m_Events>
+	<m_Events>
+		<m_EventName>BlockMovement</m_EventName>
+		<m_TimePc>0.1</m_TimePc>
+		<m_ParameterValue>TRUE</m_ParameterValue>
+	</m_Events>	
+	<m_Events>
+		<m_EventName>BlockMovement</m_EventName>
+		<m_TimePc>0.5</m_TimePc>
+		<m_ParameterValue>FALSE</m_ParameterValue>
+	</m_Events>	
+	
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_TimePc>0.2</m_TimePc>
+		<m_ParameterValue>ZombieHitReaction=HeadRightFall</m_ParameterValue>
+	</m_Events>		
+	<m_Events>
+		<m_EventName>AttackCollisionCheck</m_EventName>
+		<m_TimePc>0.2</m_TimePc>
+		<m_ParameterValue></m_ParameterValue>
+	</m_Events>			
+
+
+
+	
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_TimePc>0.25</m_TimePc>
+		<m_ParameterValue>SPK_MoveID=VEL_END</m_ParameterValue>
+	</m_Events>		
+
+	
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_TimePc>0.4</m_TimePc>
+		<m_ParameterValue>SPK_ComboWindowOpen=true</m_ParameterValue>
+	</m_Events>
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_TimePc>0.4</m_TimePc>
+		<m_ParameterValue>SPK_NextComboIndex=1</m_ParameterValue>
+	</m_Events>	
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_TimePc>0.8</m_TimePc>
+		<m_ParameterValue>SPK_ComboWindowOpen=false</m_ParameterValue>
+	</m_Events>
+
+	<m_Events>
+		<m_EventName>EndAttack</m_EventName>
+		<m_Time>End</m_Time>
+		<m_ParameterValue></m_ParameterValue>
+	</m_Events>	
+	
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Spine1</boneName>
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Neck</boneName>
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_BackPack</boneName>
+	</m_SubStateBoneWeights>
+	<m_SubStateBoneWeights>
+		<boneName>Bip01_Spine</boneName>
+		<includeDescendants>false</includeDescendants>
+	</m_SubStateBoneWeights>
+</animNode>

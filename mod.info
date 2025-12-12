@@ -1,0 +1,5 @@
+name=SpookyBallisticsEXP
+id=SpookyBallisticsEXP
+poster=poster.png
+icon=icon.png
+description= Patches files for Fancy/Brutal Handwork. Adds a "canted stance" for firearms that increases movespeed while replacing aim reticle. Adds a unique shove to canted pistols. Introduces SPK_Controller/Clombat for unarmed combos and stances.

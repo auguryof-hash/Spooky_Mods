@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animNode>
+	<m_Name>SPK_attack3</m_Name>
+	<m_AnimName>Bob_Clombat_StepRight1</m_AnimName>
+	<m_Priority>5</m_Priority>
+	<m_deferredBoneAxis>Y</m_deferredBoneAxis>
+	<m_Looped>false</m_Looped>
+	<m_EarlyTransitionOut>true</m_EarlyTransitionOut>
+	<m_SpeedScale>1.3</m_SpeedScale>
+	<m_BlendTime>0.1</m_BlendTime>
+	<m_BlendOutTime>0.2</m_BlendOutTime>
+	
+	<m_Conditions>
+		<m_Name>PerformingAction</m_Name>
+		<m_Type>STRING</m_Type>
+		<m_StringValue>LAttack</m_StringValue>
+	</m_Conditions>	
+	<m_Conditions>
+		<m_Name>SPK_AttackAnim</m_Name>
+		<m_Type>STRING</m_Type>
+		<m_StringValue>Clom_Right_3</m_StringValue>
+	</m_Conditions>
+	
+	<m_Events>
+		<m_EventName>StartAttack</m_EventName>
+		<m_Time>Start</m_Time>
+		<m_ParameterValue></m_ParameterValue>
+	</m_Events>		
+	
+	
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_Time>Start</m_Time>
+		<m_ParameterValue>SPK_MoveDir=right</m_ParameterValue>
+	</m_Events>
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_Time>Start</m_Time>
+		<m_ParameterValue>SPK_MoveSpeed=2</m_ParameterValue>
+	</m_Events>	
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_Time>Start</m_Time>
+		<m_ParameterValue>SPK_MoveID=VEL_START</m_ParameterValue>
+	</m_Events>	
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_TimePc>0.35</m_TimePc>
+		<m_ParameterValue>SPK_MoveID=VEL_END</m_ParameterValue>
+	</m_Events>			
+	
+	
+	
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_TimePc>0.8</m_TimePc>
+		<m_ParameterValue>SPK_ComboWindowOpen=true</m_ParameterValue>
+	</m_Events>
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_TimePc>0.8</m_TimePc>
+		<m_ParameterValue>SPK_NextComboIndex=4</m_ParameterValue>
+	</m_Events>		
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_TimePc>0.95</m_TimePc>
+		<m_ParameterValue>SPK_ComboWindowOpen=false</m_ParameterValue>
+	</m_Events>	
+
+
+
+	<m_Events>
+		<m_EventName>SetVariable</m_EventName>
+		<m_Time>End</m_Time>
+		<m_ParameterValue>SPK_MoveID=VEL_END</m_ParameterValue>
+	</m_Events>		
+	<m_Events>
+		<m_EventName>EndAttack</m_EventName>
+		<m_Time>End</m_Time>
+		<m_ParameterValue></m_ParameterValue>
+	</m_Events>			
+	
+	<m_SubStateBoneWeights>
+		<boneName>Bip01</boneName>
+	</m_SubStateBoneWeights>
+
+</animNode>

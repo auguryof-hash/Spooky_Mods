@@ -1,308 +1,254 @@
--------------------------------------------------------------
--- BHPatch (Client) – Combat & Stance Replication Bridge
---
--- Intent:
--- Client-side glue between BrutalAttack, FancyHandwork,
--- and multiplayer replication.
---
--- This file owns:
--- - Client-authoritative stance diffing
--- - Minimal stance replication to server
--- - Client-side melee hit forwarding
---
--- Key Responsibilities:
--- - Detect stance changes (canted, clombat, hand masks)
--- - Send only changed variables to the server
--- - Override vanilla melee behavior safely
---
--- Design Principle:
--- Client decides *how it looks and feels*.
--- Server only validates and rebroadcasts state.
---
--- Explicit Non-Goals:
--- - No animation selection
--- - No UI rendering
--- - No direct server-side logic
+------------------------------------------
+-- Fancy Handwork Init
+------------------------------------------
 
--- Networking Philosophy:
--- - Client is authoritative for stance and input intent
--- - Server validates and rebroadcasts minimal diffs
--- - Zombie damage is relayed due to engine limitations
--- - No attempt is made to perfectly resimulate melee
---   hit reactions across clients
+FancyHands = FancyHands or {}
 
------------------------------------------------------------
+------------------------------------------
+-- Fancy Handwork Configuration
+------------------------------------------
 
-
-
-local BrutalAttack = require("BrutalAttack");
-
-BHPatch = BHPatch or {};
-
----------------------------------------------------------
--- SPKAnimSync – Client-side stance replication system
----------------------------------------------------------
-SPKAnimSync = SPKAnimSync or {}
-SPKAnimSync.lastStance = SPKAnimSync.lastStance or {}
-
-local function SPK_getStanceVars(player)
-	return {
-		RightHandMask = player:getVariableString("RightHandMask"),
-		LeftHandMask  = player:getVariableString("LeftHandMask"),
-		isCanted      = player:getVariableBoolean("isCanted"),
-		isClombat     = player:getVariableBoolean("isClombat"),
-	}
-end
-
-function SPKAnimSync.syncStance(player)
-    if not player or not player.isLocalPlayer or not player:isLocalPlayer() then
-        return
-    end
-
-    local id = player:getOnlineID()
-    if not id then return end
-
-    local current = SPK_getStanceVars(player)
-    if type(current) ~= "table" then return end
-
-    local last = SPKAnimSync.lastStance[id] or {}
-    local diff = nil
-
-    for k, v in pairs(current) do
-        if last[k] ~= v then
-            if not diff then diff = {} end
-            diff[k] = v
-        end
-    end
-
-    if not diff then
-        return
-    end
-
-    SPKAnimSync.lastStance[id] = current
-
-    if sendClientCommand then
-        sendClientCommand("SPKAnim", "Stance", { id = id, vars = diff })
-    end
-end
-
-
--- sadly necessary to prevent zomboid from doing a vanilla hit on a zombie whenever ConnectSwing is called and a zombie slips out of our punch range
-local function nearZombies(centerSquare, level)
-	local objs = centerSquare:getMovingObjects();
-	for i=0, objs:size()-1 do
-		if instanceof(objs:get(i), "IsoZombie") then
-			return true;
-		end
-	end
-	
-	if level == 0 then return false end;
-
-	local startDir = 0;
-	for i=0, 7 do
-		local dir = (startDir + i) % 8;
-		local square = centerSquare:getAdjacentSquare(IsoDirections.fromIndex(dir));
-		if nearZombies(square, level - 1) then
-			return true;
-		end
-	end
-	
-	return false;
-end
-
----
--- START - copied directly from BrutalAttack.lua and modified for networking
----
-
-local addToHitList = function(list, obj, player, weapon, extraRange, vec)
-	local zed = instanceof(obj, "IsoZombie")
-	if zed and obj:isZombie() and obj:isAlive() then
-		obj:getPosition(vec)
-		if player:IsAttackRange(weapon, obj, vec, extraRange) then
-			-- Add our zed, cache the distance to the player
-			list[#list+1] = { obj = obj, dist = obj:DistTo(player) }
-			if isDebugEnabled() then
-				print("Found: " .. tostring(#list) .. " | Distance: " .. tostring(list[#list].dist))
-			end
-		end
-	end
-end
-
-local directions = {
-	[0] = IsoDirections.N,
-	[1] = IsoDirections.NW,
-	[2] = IsoDirections.W,
-	[3] = IsoDirections.SW,
-	[4] = IsoDirections.S,
-	[5] = IsoDirections.SE,
-	[6] = IsoDirections.E,
-	[7] = IsoDirections.NE,
+FancyHands.config = {
+    applyRotationL = true
 }
 
-local getAttackSquares = function(player)
-	local psquare = player:getSquare()
-	if not psquare then return nil end
-	local squares = {psquare}
-	local currentDir = player:getDir():index()
-	local leftIndex = currentDir+1
-	if leftIndex > 7 then leftIndex=0 end
-	--local middleIndex = currentDir
-	local rightIndex = currentDir-1
-	if rightIndex < 0 then rightIndex=7 end
-	-- this should collect any additional squares, only if we nothing is in the way
-	local sq = psquare:getAdjacentSquare(directions[leftIndex])
-	if sq and not sq:isBlockedTo(psquare) then
-		squares[#squares+1] = sq
-	end
-	sq = psquare:getAdjacentSquare(directions[currentDir])
-	if sq and not sq:isBlockedTo(psquare) then
-		squares[#squares+1] = sq
-	end
-	sq = psquare:getAdjacentSquare(directions[rightIndex])
-	if sq and not sq:isBlockedTo(psquare) then
-		squares[#squares+1] = sq
-	end
-	return squares
+FancyHands.nomask = {
+	["Base.Torch"] = true,
+	["Base.HandTorch"] = true,
+	["Base.UmbrellaBlack"] = true,
+	["Base.UmbrellaWhite"] = true,
+	["Base.UmbrellaBlue"] = true
+}
+
+FancyHands.special = {
+    ["Base.Generator"] = "holdinggenerator",
+    ["Base.CorpseMale"] = "holdingbody",
+    ["Base.CorpseFemale"] = "holdingbody"
+}
+
+-- Use the animations from this mod instead!
+if getActivatedMods():contains('Skizots Visible Boxes and Garbage2') then
+    FancyHands.special = {}
 end
 
-BrutalAttack.FindAndAttackTargets = function(player, weapon, extraRange)
-	-- we want a player, and a hand weapon
-	if not (player and instanceof(weapon, "HandWeapon")) then return end
+-- We will begin to store compatibility objects here
+FancyHands.compat = {}
+-- if getActivatedMods():contains('Amputation2') then -- now included in TOC!
+--     FancyHands.compat.TOC = require('compat/FH_TOC')
+-- end
+if getActivatedMods():contains('BrutalHandwork') then
+    FancyHands.compat.brutal = true
+end
+------------------------------------------
+-- Fancy Handwork Utilities
+------------------------------------------
 
-	-- honor the max hit
-	local maxHit = (SandboxVars.MultiHitZombies and weapon:getMaxHitCount()) or 1
-
-	-- this seems to be the default sooooooooo
-	if extraRange == nil then extraRange = true end
-	extraRange = true
-
-	-- We do everything so we can attack non-zeds too
-	--local objs = getCell():getObjectList()
-	local found = {}
-	local psquare = player:getSquare()
-	if not psquare then return end -- can't attack
-	local attackSquares = getAttackSquares(player)
-	if not attackSquares then return end -- no squares?
-	local vec = Vector3.new() -- reuse this
-	for i=1, #attackSquares do
-		local objs = attackSquares[i]:getMovingObjects()
-		if objs then
-			for j=0, objs:size()-1 do
-				addToHitList(found, objs:get(j), player, weapon, extraRange, vec)
-			end
-		end
-	end
-
-	if #found > 0 then
-		-- sort our found list by the closest zed
-		table.sort(found, function(a,b)
-			if a.obj:isZombie() then return true end
-			if b.obj:isZombie() then return false end
-			return a.dist < b.dist
-		end)
-		local count = 1 
-		local sound = false
-		for _,v in ipairs(found) do
-			-- hit em!
-			local damage, dmgDelta = BrutalAttack.calcDamage(player, weapon, v.obj, count)
-			if isDebugEnabled() then
-				print("Damage: " .. tostring(damage) .. " | Delta: " .. tostring(dmgDelta))
-			end
-			
-			--v.zed:splatBloodFloor()
-			if not sound then 
-				-- if we haven't played the sound yet, do so
-				sound = true
-				local zSound = weapon:getZombieHitSound()
-				if zSound then v.obj:playSound(zSound) end
-			end
-			
-			local dmg = BHPatch.Hit(v.obj, weapon, player, damage, false, dmgDelta)
-			if (isClient()) then
-				sendClientCommand("BHPatch", "BHPatch_DamageZombie", {v.obj:getOnlineID(), player:getOnlineID(), dmg})
-			end
-			
-			-- stop at maxhit
-			if count >= maxHit then break end
-			count = count + 1
-		end
-
-		luautils.weaponLowerCondition(weapon, player)
-	else
-		local primary = player:getPrimaryHandItem()
-		if not primary or not primary:isRanged() then
-		-- Swing and collide with anything not a zed
-			if not nearZombies(player:getSquare(), 2) then
-				SwipeStatePlayer.instance():ConnectSwing(player, weapon)
-			end
-		end
-	end
+function isFHModKeyDown()
+    return isKeyDown(getCore():getKey('FHModifier'))
 end
 
----
--- END - copied directly from BrutalAttack.lua and modified for networking
----
-
-local function getZombieByOnlineID(onlineID)
-    local zombies = getCell():getZombieList();
-	
-    for i = 0, zombies:size() - 1 do
-        local zombie = zombies:get(i);
-        if (zombie:getOnlineID() == onlineID) then
-            return zombie;
-        end
-    end
-	
-	return nil;
+function isFHModBindDown(player)
+    return isFHModKeyDown() or (player and player:isLBPressed())
 end
 
--- gross networking code
-
-function BHPatch.Hit(victim, weapon, attacker, damage, idfklmao, dmgDelta)
-	local outdmg = victim:Hit(weapon, attacker, damage, idfklmao, dmgDelta);
-	triggerEvent("OnWeaponHitXp", attacker, weapon, victim, outdmg);
-	
-	if (weapon:getCategories():contains("Unarmed")) then
-		attacker:getEmitter():playSound("PunchImpact");
-	end
-	
-	return outdmg;
-end
-
-function BHPatch.DamageZombieNet(victimID, attackerID, damage)
-	local victim = getZombieByOnlineID(victimID);
-	local attacker = getPlayerByOnlineID(attackerID);
-	if (not victim or not attacker) then return end
-	
-	victim:setHealth(victim:getHealth() - damage);
-    victim:setHitReaction("Shot");
-	if (victim:getHealth() < 0.1) then
-		victim:setHealth(0);
-        victim:Kill(attacker);
-        attacker:setZombieKills(attacker:getZombieKills() + 1);
+local FHswapItems = function(character)
+    local primary = character:getPrimaryHandItem()
+    local secondary = character:getSecondaryHandItem()
+    if (primary or secondary) and (primary ~= secondary) then
+        ISTimedActionQueue.add(FHSwapHandsAction:new(character, primary, secondary, 10))
     end
 end
 
-local function onServerCommand(module, command, arguments)
-	if (module == "BHPatch") then
-		if (command == "BHPatch_DamageZombie") then
-			BHPatch.DamageZombieNet(arguments[1], arguments[2], arguments[3]);
-		end
-	end
+local FHswapItemsMod = function(character)
+    if isFHModKeyDown() then
+        FHswapItems(character)
+    end
 end
 
+local FHcreateBindings = function()
+    --local FHnewBinds = {}
+    local FHbindings = {
+        {
+            name = '[FancyHandwork]'
+        },
+        {
+            value = 'FHModifier',
+            key = Keyboard.KEY_LCONTROL,
+        },
+        {
+            value = 'FHSwapKey',
+            action = FHswapItems,
+            key = 0,
+        },
+        {
+            value = 'FHSwapKeyMod',
+            action = FHswapItemsMod,
+            key = Keyboard.KEY_E,
+            swap = true
+        },
+    }
 
-
-Events.OnServerCommand.Add(function(module, command, args)
-    if module == "SPKAnim" and command == "Stance" then
-        local target = getPlayerByOnlineID(args.id)
-        if target and args.vars then
-            for k, v in pairs(args.vars) do
-                target:setVariable(k, v)
+    for _, bind in ipairs(FHbindings) do
+        if bind.name then
+            table.insert(keyBinding, { value = bind.name, key = nil })
+        else
+            if bind.key then
+                table.insert(keyBinding, { value = bind.value, key = bind.key })
             end
         end
     end
-end)
+
+    local FHhandleKeybinds = function(key)
+        local player = getSpecificPlayer(0)
+        local action
+        for _,bind in ipairs(FHbindings) do
+            if key == getCore():getKey(bind.value) then
+                if bind.swap then
+                    if isFHModKeyDown() then
+                        action = bind.action
+                        break
+                    end
+                else
+                    action = bind.action
+                    break
+                end
+            end
+        end
+    
+        if not action or isGamePaused() or not player or player:isDead() then
+            return 
+        end
+        action(player)
+    end
+
+    FancyHands.addKeyBind = function(keybind)
+        table.insert(FHbindings, keybind)
+    end
+
+    Events.OnGameStart.Add(function()
+        Events.OnKeyPressed.Add(FHhandleKeybinds)
+    end)
+    
+end
+
+local function calcRecentMove(player)
+    player:getModData().FancyHands = player:getModData().FancyHands or {
+        recentMove = false,
+        recentDelta = 0
+    } 
+    if player:isPlayerMoving() then
+        player:getModData().FancyHands.recentMove = true
+        player:getModData().FancyHands.recentDelta = 0
+    else
+        if player:getModData().FancyHands.recentMove then
+            player:getModData().FancyHands.recentDelta = player:getModData().FancyHands.recentDelta + 1
+            if player:getModData().FancyHands.recentDelta >= ((SandboxVars.FancyHandwork and SandboxVars.FancyHandwork.TurnDelaySec) or 1)*getPerformance():getFramerate() then
+                player:getModData().FancyHands.recentMove = false
+            end
+        end
+    end
+end
 
 
-Events.OnServerCommand.Add(onServerCommand);
+
+local function fancy(player)
+    if not player or player:isDead() or player:isAsleep() then return end
+    local primary = player:getPrimaryHandItem()
+    local secondary = player:getSecondaryHandItem()
+
+    local queue = ISTimedActionQueue.queues[player]
+    if queue and #queue.queue > 0 and not queue.queue[1].FHIgnore then
+        player:setVariable("FHDoingAction", true)
+    else
+        player:setVariable("FHDoingAction", false)
+    end
+
+    local doingAction = player:getVariableBoolean("IsPerformingAnAction") and not player:getVariableBoolean("FHIgnoreAction")
+    player:setVariable("FHDoingAction", doingAction)
+
+    -- 2 hands
+    if primary == secondary then
+        if primary then
+            if FancyHands.special[primary:getFullType()] then
+                player:setVariable("LeftHandMask", FancyHands.special[primary:getFullType()])
+                player:clearVariable("RightHandMask")    
+                return
+            end
+            -- some other mods do have their own anim masks, so lets keep those!
+            if primary:getItemReplacementPrimaryHand() then
+                player:clearVariable("LeftHandMask")
+                return
+            end            
+        end
+        if FancyHands.compat.brutal then
+            local equipped = instanceof(primary, "HandWeapon") and primary:getCategories():contains("Unarmed")
+            -- we already established that primary and secondary are the same, so if primary is nil then so is secondary
+            -- or, this is a 2h fist weapon and therefore we should still get ready to punch
+            if (not primary and player:isAiming() and (SandboxVars.BrutalHandwork.EnableUnarmed and (SandboxVars.BrutalHandwork.AlwaysUnarmed or isFHModBindDown(player)))) or equipped then
+                player:setVariable("RightHandMask", "bhunarmedaim")
+                return 
+            end
+        end
+        player:clearVariable("LeftHandMask")
+        player:clearVariable("RightHandMask")
+        return
+    end
+
+    if primary and not doingAction then
+        if not primary:getItemReplacementPrimaryHand() then
+            if instanceof(primary, "HandWeapon") then
+                player:setVariable("RightHandMask", (primary:isRanged() and "holdinggunright") or "holdingitemright")
+                player:setVariable("FHExp", player:getPerkLevel(Perks.Aiming) >= ((SandboxVars.FancyHandwork and SandboxVars.FancyHandwork.ExperiencedAiming) or 3))
+            end
+        end
+    end
+
+    if secondary and not doingAction then
+        if not secondary:getItemReplacementSecondHand() then
+            if instanceof(secondary, "HandWeapon") then
+                player:setVariable("LeftHandMask", (secondary:isRanged() and "holdinghgunleft") or "holdingitemleft")
+            end 
+        end
+    end
+end
+
+local curPlayer = 0
+local function fancyMP(player)
+    if not player or player:isDead() or player:isAsleep() then return end
+    
+    fancy(player)
+    
+    -- We will do one player per tick to set their state
+    ---- We do this to ensure each tick doesn't take too long
+    local players = getOnlinePlayers()
+    if curPlayer > (players:size()-1) then curPlayer = 0 end
+    local mPlayer = players:get(curPlayer)
+    if mPlayer ~= player then
+        fancy(mPlayer)
+    end
+    curPlayer = curPlayer + 1
+end
+
+local function FancyHandwork()
+    print(getText("UI_Init_FancyHandwork"))
+
+    if isServer() then return end
+    FHcreateBindings()
+
+    Events.OnGameStart.Add(function()
+        if isClient() then
+            Events.OnPlayerUpdate.Add(function(player)
+                fancyMP(player)
+                calcRecentMove(player)
+            end)
+        else
+            Events.OnPlayerUpdate.Add(function(player)
+                fancy(player)
+                calcRecentMove(player)
+            end)
+        end
+    end)
+end
+
+FancyHandwork()
+

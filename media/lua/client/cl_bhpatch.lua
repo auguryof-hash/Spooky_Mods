@@ -46,7 +46,8 @@ SPKAnimSync = SPKAnimSync or {}
 SPKAnimSync.lastStance = SPKAnimSync.lastStance or {}
 
 local function SPK_getStanceVars(player)
-	return {
+	return {	
+		AttackAnim    = player:getVariableString("SPK_AttackAnim") or "",
 		RightHandMask = player:getVariableString("RightHandMask") or "",
 		LeftHandMask  = player:getVariableString("LeftHandMask") or "",
 		isCanted      = player:getVariableBoolean("isCanted"),

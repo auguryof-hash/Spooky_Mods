@@ -1,309 +1,183 @@
 -----------------------------------------------------------
--- BHPatch (Client) – Combat & Stance Replication Bridge
+-- SPK_Clombat – Animation-Driven Unarmed Combo System
 --
 -- Intent:
--- Client-side glue between BrutalAttack, FancyHandwork,
--- and multiplayer replication.
+-- Defines the logic layer for unarmed ("Clombat") combat,
+-- driven entirely by animation variables and timing windows.
 --
--- This file owns:
--- - Client-authoritative stance diffing
--- - Minimal stance replication to server
--- - Client-side melee hit forwarding
+-- This file translates player input into:
+-- - Combo index selection
+-- - Directional attack variants
+-- - Animation variable updates
 --
 -- Key Responsibilities:
--- - Detect stance changes (canted, clombat, hand masks)
--- - Send only changed variables to the server
--- - Override vanilla melee behavior safely
---
--- Design Principle:
--- Client decides *how it looks and feels*.
--- Server only validates and rebroadcasts state.
+-- - Track per-player combo state
+-- - Resolve directional attack intent
+-- - Coordinate with AnimSets via variables
 --
 -- Explicit Non-Goals:
--- - No animation selection
--- - No UI rendering
--- - No direct server-side logic
-
--- Networking Philosophy:
--- - Client is authoritative for stance and input intent
--- - Server validates and rebroadcasts minimal diffs
--- - Zombie damage is relayed due to engine limitations
--- - No attempt is made to perfectly resimulate melee
---   hit reactions across clients
-
+-- - No damage calculation
+-- - No movement application
+-- - No networking
 -----------------------------------------------------------
 
 
+require "SPK_Controller"
 
-local BrutalAttack = require("BrutalAttack");
+SPK = SPK or {}
+SPK.ClombatComboState = SPK.ClombatComboState or {}
 
-BHPatch = BHPatch or {};
+-----------------------------------------------------------
+-- Debug
+-----------------------------------------------------------
 
----------------------------------------------------------
--- SPKAnimSync – Client-side stance replication system
----------------------------------------------------------
-SPKAnimSync = SPKAnimSync or {}
-SPKAnimSync.lastStance = SPKAnimSync.lastStance or {}
+SPK.DEBUG_CLOMBAT = false  -- flip this off later if it's too spammy
 
-local function SPK_getStanceVars(player)
-	return {	
-		AttackAnim    = player:getVariableString("SPK_AttackAnim") or "",
-		RightHandMask = player:getVariableString("RightHandMask") or "",
-		LeftHandMask  = player:getVariableString("LeftHandMask") or "",
-		isCanted      = player:getVariableBoolean("isCanted"),
-		isClombat     = player:getVariableBoolean("isClombat"),
-	}
+local function spkDebugClombat(player, msg)
+    if not SPK.DEBUG_CLOMBAT then return end
+    local prefix = "[SPK-Clombat] "
+    print(prefix .. msg)
+    -- Optional: have the player say it in MP/SP for quick visual feedback
+    if isClient() or not isServer() then
+        player:Say(prefix .. msg)
+    end
 end
 
-function SPKAnimSync.syncStance(player)
-    if not player or not player.isLocalPlayer or not player:isLocalPlayer() then
-        return
+-----------------------------------------------------------
+-- Variable helpers
+-----------------------------------------------------------
+
+local function spkVarBool(player, name)
+    local v = player:getVariableString(name)
+    return v == "true" or v == "TRUE" or v == "1"
+end
+
+local function spkVarInt(player, name, default)
+    local v = player:getVariableString(name)
+    local n = tonumber(v or "")
+    if n == nil then return default or 0 end
+    return math.floor(n)
+end
+
+-----------------------------------------------------------
+-- Helpers
+-----------------------------------------------------------
+
+local function spkGetPlayerId(player)
+    return player:getOnlineID() or player:getPlayerNum() or 0
+end
+
+local function spkGetClombatState(player)
+    local id = spkGetPlayerId(player)
+    local s = SPK.ClombatComboState[id]
+    if not s then
+        s = { currentIndex = 1, wasAttacking = false }
+        SPK.ClombatComboState[id] = s
     end
+    return s
+end
 
-    local id = player:getOnlineID()
-    if not id then return end
+function SPK.Clombat_IsComboWindowOpen(player)
+    return spkVarBool(player, "SPK_ComboWindowOpen")
+end
 
-    local current = SPK_getStanceVars(player)
-    if type(current) ~= "table" then return end
+local function spkGetNextComboIndexFromAnim(player)
+    local n = spkVarInt(player, "SPK_NextComboIndex", 1)
+    if n < 1 then n = 1 end
+    return n
+end
 
-    local last = SPKAnimSync.lastStance[id] or {}
-    local diff = nil
+-----------------------------------------------------------
+-- Attack input entry point (called from BH attackHook)
+-----------------------------------------------------------
 
-    for k, v in pairs(current) do
-        if last[k] ~= v then
-            if not diff then diff = {} end
-            diff[k] = v
+function SPK.Clombat_OnAttackPressed(player)
+    if not player or player:isDead() then return end
+
+    local state = spkGetClombatState(player)
+
+    local attackingNow    = player:isAttacking() or player:isDoShove()
+    local comboWindowOpen = SPK.Clombat_IsComboWindowOpen(player)
+
+    local newIndex
+
+    -- If the combo window is open, always chain to the next index.
+    if comboWindowOpen then
+        newIndex = spkGetNextComboIndexFromAnim(player)
+    else
+        -- No combo window:
+        -- - if not currently attacking, start (or restart) at 1
+        -- - if mid-attack, keep current index and ignore input
+        if not attackingNow then
+            newIndex = 1
+        else
+            newIndex = state.currentIndex or 1
         end
     end
 
-    if not diff then
-        return
+    state.currentIndex = newIndex
+
+    -- Direction at the moment of input
+    local rawDir = SPK.getRelativeMoveDir(player) or "neutral"
+    local dirForSelection = (rawDir == "neutral") and "forward" or rawDir
+
+    local dirToken
+    if     dirForSelection == "forward"  then dirToken = "Fwd"
+    elseif dirForSelection == "backward" then dirToken = "Back"
+    elseif dirForSelection == "left"     then dirToken = "Left"
+    elseif dirForSelection == "right"    then dirToken = "Right"
+    else dirToken = "Fwd"
     end
 
-    SPKAnimSync.lastStance[id] = current
+    local animId = string.format("Clom_%s_%d", dirToken, newIndex)
 
-    if sendClientCommand then
-        sendClientCommand("SPKAnim", "Stance", { id = id, vars = diff })
-    end
-end
-
-
--- sadly necessary to prevent zomboid from doing a vanilla hit on a zombie whenever ConnectSwing is called and a zombie slips out of our punch range
-local function nearZombies(centerSquare, level)
-	local objs = centerSquare:getMovingObjects();
-	for i=0, objs:size()-1 do
-		if instanceof(objs:get(i), "IsoZombie") then
-			return true;
-		end
-	end
+    -- Push variables for AnimSets
+    player:setVariable("SPK_AttackIndex", tostring(newIndex))
+    player:setVariable("SPK_AttackDir",   rawDir)
+    player:setVariable("SPK_AttackAnim",  animId)
+	SPKAnimSync.syncStance(player)
 	
-	if level == 0 then return false end;
-
-	local startDir = 0;
-	for i=0, 7 do
-		local dir = (startDir + i) % 8;
-		local square = centerSquare:getAdjacentSquare(IsoDirections.fromIndex(dir));
-		if nearZombies(square, level - 1) then
-			return true;
-		end
-	end
-	
-	return false;
+    spkDebugClombat(player,
+        string.format("Pressed: attacking=%s comboOpen=%s newIndex=%s animId=%s curStateIndex=%s rawDir=%s",
+            tostring(attackingNow),
+            tostring(comboWindowOpen),
+            tostring(newIndex),
+            tostring(animId),
+            tostring(state.currentIndex or "?"),
+            tostring(rawDir))
+    )
 end
 
----
--- START - copied directly from BrutalAttack.lua and modified for networking
----
 
-local addToHitList = function(list, obj, player, weapon, extraRange, vec)
-	local zed = instanceof(obj, "IsoZombie")
-	if zed and obj:isZombie() and obj:isAlive() then
-		obj:getPosition(vec)
-		if player:IsAttackRange(weapon, obj, vec, extraRange) then
-			-- Add our zed, cache the distance to the player
-			list[#list+1] = { obj = obj, dist = obj:DistTo(player) }
-			if isDebugEnabled() then
-				print("Found: " .. tostring(#list) .. " | Distance: " .. tostring(list[#list].dist))
-			end
-		end
-	end
-end
+-----------------------------------------------------------
+-- Per-tick combo cleanup (reset when attack fully ends)
+-----------------------------------------------------------
 
-local directions = {
-	[0] = IsoDirections.N,
-	[1] = IsoDirections.NW,
-	[2] = IsoDirections.W,
-	[3] = IsoDirections.SW,
-	[4] = IsoDirections.S,
-	[5] = IsoDirections.SE,
-	[6] = IsoDirections.E,
-	[7] = IsoDirections.NE,
-}
+function SPK.Clombat_OnPlayerUpdate(player)
+    if not player or player:isDead() then return end
+    if not player:isLocalPlayer() then return end
 
-local getAttackSquares = function(player)
-	local psquare = player:getSquare()
-	if not psquare then return nil end
-	local squares = {psquare}
-	local currentDir = player:getDir():index()
-	local leftIndex = currentDir+1
-	if leftIndex > 7 then leftIndex=0 end
-	--local middleIndex = currentDir
-	local rightIndex = currentDir-1
-	if rightIndex < 0 then rightIndex=7 end
-	-- this should collect any additional squares, only if we nothing is in the way
-	local sq = psquare:getAdjacentSquare(directions[leftIndex])
-	if sq and not sq:isBlockedTo(psquare) then
-		squares[#squares+1] = sq
-	end
-	sq = psquare:getAdjacentSquare(directions[currentDir])
-	if sq and not sq:isBlockedTo(psquare) then
-		squares[#squares+1] = sq
-	end
-	sq = psquare:getAdjacentSquare(directions[rightIndex])
-	if sq and not sq:isBlockedTo(psquare) then
-		squares[#squares+1] = sq
-	end
-	return squares
-end
+    local state = spkGetClombatState(player)
 
-BrutalAttack.FindAndAttackTargets = function(player, weapon, extraRange)
-	-- we want a player, and a hand weapon
-	if not (player and instanceof(weapon, "HandWeapon")) then return end
+    local attackingNow    = player:isAttacking() or player:isDoShove()
+    local comboWindowOpen = SPK.Clombat_IsComboWindowOpen(player)
+    local nextIdxStr      = player:getVariableString("SPK_NextComboIndex") or "nil"
 
-	-- honor the max hit
-	local maxHit = (SandboxVars.MultiHitZombies and weapon:getMaxHitCount()) or 1
+    if state.wasAttacking and (not attackingNow) then
+        spkDebugClombat(player, "Attack ended; comboOpen=" .. tostring(comboWindowOpen))
 
-	-- this seems to be the default sooooooooo
-	if extraRange == nil then extraRange = true end
-	extraRange = true
-
-	-- We do everything so we can attack non-zeds too
-	--local objs = getCell():getObjectList()
-	local found = {}
-	local psquare = player:getSquare()
-	if not psquare then return end -- can't attack
-	local attackSquares = getAttackSquares(player)
-	if not attackSquares then return end -- no squares?
-	local vec = Vector3.new() -- reuse this
-	for i=1, #attackSquares do
-		local objs = attackSquares[i]:getMovingObjects()
-		if objs then
-			for j=0, objs:size()-1 do
-				addToHitList(found, objs:get(j), player, weapon, extraRange, vec)
-			end
-		end
-	end
-
-	if #found > 0 then
-		-- sort our found list by the closest zed
-		table.sort(found, function(a,b)
-			if a.obj:isZombie() then return true end
-			if b.obj:isZombie() then return false end
-			return a.dist < b.dist
-		end)
-		local count = 1 
-		local sound = false
-		for _,v in ipairs(found) do
-			-- hit em!
-			local damage, dmgDelta = BrutalAttack.calcDamage(player, weapon, v.obj, count)
-			if isDebugEnabled() then
-				print("Damage: " .. tostring(damage) .. " | Delta: " .. tostring(dmgDelta))
-			end
-			
-			--v.zed:splatBloodFloor()
-			if not sound then 
-				-- if we haven't played the sound yet, do so
-				sound = true
-				local zSound = weapon:getZombieHitSound()
-				if zSound then v.obj:playSound(zSound) end
-			end
-			
-			local dmg = BHPatch.Hit(v.obj, weapon, player, damage, false, dmgDelta)
-			if (isClient()) then
-				sendClientCommand("BHPatch", "BHPatch_DamageZombie", {v.obj:getOnlineID(), player:getOnlineID(), dmg})
-			end
-			
-			-- stop at maxhit
-			if count >= maxHit then break end
-			count = count + 1
-		end
-
-		luautils.weaponLowerCondition(weapon, player)
-	else
-		local primary = player:getPrimaryHandItem()
-		if not primary or not primary:isRanged() then
-		-- Swing and collide with anything not a zed
-			if not nearZombies(player:getSquare(), 2) then
-				SwipeStatePlayer.instance():ConnectSwing(player, weapon)
-			end
-		end
-	end
-end
-
----
--- END - copied directly from BrutalAttack.lua and modified for networking
----
-
-local function getZombieByOnlineID(onlineID)
-    local zombies = getCell():getZombieList();
-	
-    for i = 0, zombies:size() - 1 do
-        local zombie = zombies:get(i);
-        if (zombie:getOnlineID() == onlineID) then
-            return zombie;
+        if not comboWindowOpen then
+            state.currentIndex = 1
         end
+
+        -- Clear vars when the attack finishes
+        player:setVariable("SPK_AttackAnim", "")
+        player:setVariable("SPK_AttackDir", "")
+        player:setVariable("SPK_AttackIndex", "0")
+		SPKAnimSync.syncStance(player)		
     end
-	
-	return nil;
+
+    state.wasAttacking = attackingNow
 end
 
--- gross networking code
-
-function BHPatch.Hit(victim, weapon, attacker, damage, idfklmao, dmgDelta)
-	local outdmg = victim:Hit(weapon, attacker, damage, idfklmao, dmgDelta);
-	triggerEvent("OnWeaponHitXp", attacker, weapon, victim, outdmg);
-	
-	if (weapon:getCategories():contains("Unarmed")) then
-		attacker:getEmitter():playSound("PunchImpact");
-	end
-	
-	return outdmg;
-end
-
-function BHPatch.DamageZombieNet(victimID, attackerID, damage)
-	local victim = getZombieByOnlineID(victimID);
-	local attacker = getPlayerByOnlineID(attackerID);
-	if (not victim or not attacker) then return end
-	
-	victim:setHealth(victim:getHealth() - damage);
-    victim:setHitReaction("Shot");
-	if (victim:getHealth() < 0.1) then
-		victim:setHealth(0);
-        victim:Kill(attacker);
-        attacker:setZombieKills(attacker:getZombieKills() + 1);
-    end
-end
-
-local function onServerCommand(module, command, arguments)
-	if (module == "BHPatch") then
-		if (command == "BHPatch_DamageZombie") then
-			BHPatch.DamageZombieNet(arguments[1], arguments[2], arguments[3]);
-		end
-	end
-end
-
-
-
-Events.OnServerCommand.Add(function(module, command, args)
-    if module == "SPKAnim" and command == "Stance" then
-        local target = getPlayerByOnlineID(args.id)
-        if target and args.vars then
-            for k, v in pairs(args.vars) do
-                target:setVariable(k, v)
-            end
-        end
-    end
-end)
-
-
-Events.OnServerCommand.Add(onServerCommand);
+Events.OnPlayerUpdate.Add(SPK.Clombat_OnPlayerUpdate)
